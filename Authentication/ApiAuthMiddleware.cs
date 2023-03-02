@@ -1,36 +1,35 @@
-﻿namespace ApiKeyAuthentication.Authentication
+﻿namespace ApiKeyAuthentication.Authentication;
+
+public class ApiAuthMiddleware
 {
-    public class ApiAuthMiddleware
+    private readonly RequestDelegate _next;
+    private readonly IConfiguration _configuration;
+
+    public ApiAuthMiddleware(RequestDelegate next, IConfiguration configuration)
     {
-        private readonly RequestDelegate _next;
-        private readonly IConfiguration _configuration;
+        _next = next;
+        _configuration = configuration;
+    }
 
-        public ApiAuthMiddleware(RequestDelegate next, IConfiguration configuration)
+    public async Task InvokeAsync(HttpContext context)
+    {
+        if (!context.Request.Headers.TryGetValue(AuthConstants.ApiKeyHeaderName, out var extractedApiKey))
         {
-            _next = next;
-            _configuration = configuration;
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("API Key missing");
+            return;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+        var apiKey = _configuration.GetValue<string>(AuthConstants.ApiKeySectionName);
+        var test = _configuration[AuthConstants.ApiKeySectionName];
+
+        if (string.IsNullOrEmpty(apiKey) || !apiKey.Equals(extractedApiKey))
         {
-            if (!context.Request.Headers.TryGetValue(AuthConstants.ApiKeyHeaderName, out var extractedApiKey))
-            {
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("API Key missing");
-                return;
-            }
-
-            var apiKey = _configuration.GetValue<string>(AuthConstants.ApiKeySectionName);
-            var test = _configuration[AuthConstants.ApiKeySectionName];
-
-            if (string.IsNullOrEmpty(apiKey) || !apiKey.Equals(extractedApiKey))
-            {
-                context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Invalid API Key");
-                return;
-            }
-
-            await _next(context);
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("Invalid API Key");
+            return;
         }
+
+        await _next(context);
     }
 }
